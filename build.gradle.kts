@@ -6,7 +6,7 @@ plugins {
 
 group = "com.maximaaax.android.utils"
 
-val appVersion = "0.0.1"
+val appVersion = "1.0.0"
 version = appVersion
 
 repositories {
