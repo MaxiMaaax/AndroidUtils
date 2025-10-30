@@ -76,7 +76,12 @@ jobs:
           esac
 
           NEW="$MA.$MI.$PA"
-          BUMP_NAME=$(case $BUMP_TYPE in 2) echo "MAJOR" ;; 1) echo "MINOR" ;; 0) echo "PATCH" ;; esac)
+          case $BUMP_TYPE in
+            2) BUMP_NAME="MAJOR" ;;
+            1) BUMP_NAME="MINOR" ;;
+            0) BUMP_NAME="PATCH" ;;
+            *) BUMP_NAME="PATCH" ;;
+          esac
 
           echo "Current: $CURRENT -> New: $NEW ($BUMP_NAME bump)"
           echo "Analyzed commits:"
