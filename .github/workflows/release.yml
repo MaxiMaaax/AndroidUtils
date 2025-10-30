@@ -51,5 +51,22 @@ jobs:
           name: AndroidUtils-dmg-${{ steps.bump.outputs.version }}
           path: build/compose/binaries/main/dmg/*.dmg
 
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.version }}
+          name: Release v${{ steps.bump.outputs.version }}
+          body: |
+            ## Changes
+            
+            ${{ steps.bump.outputs.bump_type }} version bump
+            
+            See commit history for details.
+          files: build/compose/binaries/main/dmg/*.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
 
