@@ -1,0 +1,116 @@
+name: Release DMG on main
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Bump version, commit and tag
+        id: bump
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          FILE="build.gradle.kts"
+          # Extract current packageVersion X.Y.Z
+          CURRENT=$(grep -E 'packageVersion\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"' -m1 "$FILE" | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
+          if [[ -z "$CURRENT" ]]; then
+            echo "Could not find current packageVersion in $FILE" >&2
+            exit 1
+          fi
+          IFS='.' read -r MA MI PA <<<"$CURRENT"
+
+          # Determine bump type from commits since last tag
+          # 0 = patch, 1 = minor, 2 = major
+          BUMP_TYPE=0
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [[ -z "$LAST_TAG" ]]; then
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" ${LAST_TAG}..HEAD)
+          fi
+
+          while IFS= read -r msg; do
+            # Check for BREAKING CHANGE (major version bump)
+            # Formats: "feat!: ...", "feat(scope)!: ...", or "BREAKING CHANGE:" in message
+            if [[ "$msg" =~ \![:] ]] || [[ "$msg" =~ BREAKING[[:space:]]*CHANGE ]]; then
+              BUMP_TYPE=2
+              break
+            fi
+            # Check for feat: (minor version bump)
+            if [[ "$msg" =~ ^feat[\(\)a-z0-9]*: ]] && [[ $BUMP_TYPE -lt 1 ]]; then
+              BUMP_TYPE=1
+            fi
+            # fix: or other commits default to patch (already 0)
+          done <<<"$COMMITS"
+
+          # Apply bump
+          case $BUMP_TYPE in
+            2) MA=$((MA+1)); MI=0; PA=0 ;;
+            1) MI=$((MI+1)); PA=0 ;;
+            0) PA=$((PA+1)) ;;
+          esac
+
+          NEW="$MA.$MI.$PA"
+          BUMP_NAME=$(case $BUMP_TYPE in 2) echo "MAJOR" ;; 1) echo "MINOR" ;; 0) echo "PATCH" ;; esac)
+
+          echo "Current: $CURRENT -> New: $NEW ($BUMP_NAME bump)"
+          echo "Analyzed commits:"
+          echo "$COMMITS"
+
+          # Update packageVersion
+          sed -i '' -E "s/(packageVersion\s*=\s*")([0-9]+\.[0-9]+\.[0-9]+)(".*)/\1$NEW\3/" "$FILE"
+          # Update project version (set to same X.Y.Z)
+          sed -i '' -E "s/(^version\s*=\s*")[^"]+("$)/\1$NEW\2/" "$FILE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "chore(release): v$NEW" || echo "No changes to commit"
+          git tag "v$NEW" || echo "Tag exists"
+          git push origin HEAD:main || true
+          git push origin --tags || true
+
+          echo "version=$NEW" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_NAME" >> $GITHUB_OUTPUT
+
+      - name: Make binaries script executable
+        run: chmod +x scripts/download_binaries.sh
+
+      - name: Download embedded binaries (adb, scrcpy)
+        run: ./scripts/download_binaries.sh
+
+      - name: Build DMG
+        run: ./gradlew --no-daemon packageDmg
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AndroidUtils-dmg-${{ steps.bump.outputs.version }}
+          path: build/compose/binaries/main/dmg/*.dmg
+
+
