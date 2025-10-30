@@ -5,7 +5,9 @@ plugins {
 }
 
 group = "com.maximaaax.android.utils"
-version = "1.0-SNAPSHOT"
+
+val appVersion = "0.0.0"
+version = appVersion
 
 repositories {
     mavenCentral()
@@ -31,7 +33,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg)
             packageName = "AndroidUtils"
-            packageVersion = "1.0.0"
+            packageVersion = appVersion
             macOS {
                 bundleID = "com.maximaaax.android.utils"
                 iconFile.set(project.file("src/main/resources/app/icon.icns").takeIf { it.exists() })
