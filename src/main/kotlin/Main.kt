@@ -77,7 +77,11 @@ private fun App() {
     var selectedDevice by remember { mutableStateOf<AdbDevice?>(null) }
     var packages by remember { mutableStateOf(emptyList<PackageInfo>()) }
     var packageFilter by remember { mutableStateOf("") }
-    var outputDir by remember { mutableStateOf<File?>(null) }
+    var outputDir by remember { 
+        mutableStateOf<File?>(
+            File(System.getProperty("user.home"), "Downloads").takeIf { it.exists() && it.isDirectory() }
+        )
+    }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var loadingNames by remember { mutableStateOf(false) }
