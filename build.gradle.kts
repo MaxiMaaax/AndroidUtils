@@ -20,6 +20,8 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
+    implementation("io.insert-koin:koin-core:3.5.0")
+    implementation("io.insert-koin:koin-compose:1.1.0")
     testImplementation(kotlin("test"))
 }
 

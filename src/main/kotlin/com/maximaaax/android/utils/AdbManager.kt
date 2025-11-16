@@ -1,19 +1,11 @@
 package com.maximaaax.android.utils
 
+import com.maximaaax.android.utils.domain.model.AdbDevice
+import com.maximaaax.android.utils.domain.model.PackageInfo
+import com.maximaaax.android.utils.infrastructure.ResourceExtractor
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
-
-data class AdbDevice(
-    val serial: String,
-    val model: String?,
-    val deviceName: String?
-)
-
-data class PackageInfo(
-    val packageName: String,
-    val appName: String?
-)
 
 object AdbManager {
     private fun adbExecutable(): File = ResourceExtractor.ensureBinaryAvailable("adb")

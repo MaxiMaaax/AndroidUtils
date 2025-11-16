@@ -1,5 +1,6 @@
 package com.maximaaax.android.utils
 
+import com.maximaaax.android.utils.infrastructure.ResourceExtractor
 import java.io.File
 
 object ScrcpyLauncher {

@@ -1,4 +1,4 @@
-package com.maximaaax.android.utils
+package com.maximaaax.android.utils.infrastructure
 
 import java.io.File
 import java.io.IOException
@@ -69,5 +69,4 @@ object ResourceExtractor {
         return dir
     }
 }
-
 
