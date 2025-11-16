@@ -17,6 +17,12 @@ object ResourceExtractor {
             extract(binaryName, targetFile)
         }
         makeExecutable(targetFile)
+        
+        // Si c'est scrcpy, s'assurer que scrcpy-server est aussi disponible
+        if (binaryName == "scrcpy") {
+            ensureBinaryAvailable("scrcpy-server")
+        }
+        
         return targetFile
     }
 

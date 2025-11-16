@@ -10,6 +10,11 @@ data class AdbDevice(
     val deviceName: String?
 )
 
+data class PackageInfo(
+    val packageName: String,
+    val appName: String?
+)
+
 object AdbManager {
     private fun adbExecutable(): File = ResourceExtractor.ensureBinaryAvailable("adb")
 
@@ -76,6 +81,173 @@ object AdbManager {
         val exit = process.waitFor()
         if (exit != 0) throw RuntimeException("Echec du pull ADB (code $exit)")
         return target
+    }
+
+    /**
+     * Récupère le nom de l'application pour un package donné via ADB.
+     * Utilise `pm dump` qui est plus rapide que `dumpsys package`.
+     * 
+     * @param serial Le numéro de série de l'appareil
+     * @param packageName Le nom du package (ex: com.example.app)
+     * @return Le nom de l'application ou null si non trouvé
+     */
+    fun getApplicationName(serial: String, packageName: String): String? {
+        // Utiliser pm dump qui est généralement plus rapide que dumpsys
+        val process = ProcessBuilder(
+            adbExecutable().absolutePath,
+            "-s", serial,
+            "shell", "pm", "dump", packageName
+        ).redirectErrorStream(true).start()
+        
+        // Lire avec un timeout pour éviter les blocages
+        val output = try {
+            val reader = process.inputStream.bufferedReader()
+            val result = StringBuilder()
+            val buffer = CharArray(8192)
+            var read: Int
+            var totalRead = 0
+            val maxRead = 50000 // Limiter la lecture à ~50KB pour éviter les blocages
+            
+            while (reader.ready() && totalRead < maxRead) {
+                read = reader.read(buffer, 0, minOf(buffer.size, maxRead - totalRead))
+                if (read <= 0) break
+                result.append(buffer, 0, read)
+                totalRead += read
+            }
+            result.toString()
+        } catch (e: Exception) {
+            process.destroyForcibly()
+            return null
+        }
+        
+        // Attendre avec un timeout (2 secondes max)
+        val completed = try {
+            process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            false
+        }
+        
+        if (!completed) {
+            process.destroyForcibly()
+            return null
+        }
+        
+        if (process.exitValue() != 0) {
+            return null
+        }
+        
+        // Chercher le label de l'application dans la sortie
+        // Format typique: "applicationLabel=Nom de l'application" ou "applicationLabel='Nom'"
+        val lines = output.lines().toList()
+        
+        // Chercher applicationLabel= dans les lignes (format le plus courant)
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("applicationLabel=")) {
+                val label = trimmed.removePrefix("applicationLabel=")
+                    .trim()
+                    .removeSurrounding("\"")
+                    .removeSurrounding("'")
+                    .trim()
+                if (label.isNotEmpty() && label != "null") {
+                    return label
+                }
+            }
+        }
+        
+        // Fallback 1: chercher "label=" dans la section ApplicationInfo (format différent)
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("label=") && !trimmed.startsWith("labelRes=")) {
+                val label = trimmed.removePrefix("label=")
+                    .trim()
+                    .removeSurrounding("\"")
+                    .removeSurrounding("'")
+                    .trim()
+                if (label.isNotEmpty() && label != "null") {
+                    return label
+                }
+            }
+        }
+        
+        // Fallback: essayer dumpsys package si pm dump n'a pas fonctionné
+        try {
+            // Utiliser sh -c pour exécuter la commande avec pipe
+            val dumpsysProcess = ProcessBuilder(
+                adbExecutable().absolutePath,
+                "-s", serial,
+                "shell", "sh", "-c", "dumpsys package $packageName | grep -A 1 applicationLabel"
+            ).redirectErrorStream(true).start()
+            
+            val dumpsysOutput = try {
+                val reader = dumpsysProcess.inputStream.bufferedReader()
+                val result = StringBuilder()
+                val buffer = CharArray(4096)
+                var read: Int
+                var totalRead = 0
+                val maxRead = 20000 // Limiter à 20KB
+                
+                while (reader.ready() && totalRead < maxRead) {
+                    read = reader.read(buffer, 0, minOf(buffer.size, maxRead - totalRead))
+                    if (read <= 0) break
+                    result.append(buffer, 0, read)
+                    totalRead += read
+                }
+                result.toString()
+            } catch (e: Exception) {
+                dumpsysProcess.destroyForcibly()
+                return null
+            }
+            
+            val completed = try {
+                dumpsysProcess.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)
+            } catch (e: Exception) {
+                false
+            }
+            
+            if (!completed) {
+                dumpsysProcess.destroyForcibly()
+                return null
+            }
+            
+            if (dumpsysProcess.exitValue() == 0) {
+                val dumpsysLines = dumpsysOutput.lines().toList()
+                for (line in dumpsysLines) {
+                    val trimmed = line.trim()
+                    if (trimmed.startsWith("applicationLabel=")) {
+                        val label = trimmed.removePrefix("applicationLabel=")
+                            .trim()
+                            .removeSurrounding("\"")
+                            .removeSurrounding("'")
+                            .trim()
+                        if (label.isNotEmpty() && label != "null") {
+                            return label
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Ignorer les erreurs du fallback
+        }
+        
+        return null
+    }
+
+    /**
+     * Liste les packages avec leurs noms d'applications.
+     * Attention: cette fonction peut être lente car elle fait un appel ADB par package.
+     * 
+     * @param serial Le numéro de série de l'appareil
+     * @return Liste des packages avec leurs noms d'applications
+     */
+    fun listPackagesWithNames(serial: String): List<PackageInfo> {
+        val packages = listPackages(serial)
+        return packages.map { packageName ->
+            PackageInfo(
+                packageName = packageName,
+                appName = getApplicationName(serial, packageName)
+            )
+        }
     }
 }
 

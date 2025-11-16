@@ -30,5 +30,15 @@ fi
 cp "$SCRCPY_BIN" "$OUT_DIR/scrcpy"
 chmod +x "$OUT_DIR/scrcpy"
 
+# Find and copy scrcpy-server (required by scrcpy)
+SCRCPY_SERVER=$(find "$TMP_DIR" -type f -name "scrcpy-server" | head -n 1)
+if [[ -n "$SCRCPY_SERVER" ]]; then
+  echo "Found scrcpy-server, copying..."
+  cp "$SCRCPY_SERVER" "$OUT_DIR/scrcpy-server"
+  chmod +x "$OUT_DIR/scrcpy-server"
+else
+  echo "Warning: scrcpy-server not found in archive, scrcpy may not work properly"
+fi
+
 echo "Done. Binaries placed in $OUT_DIR"
 
