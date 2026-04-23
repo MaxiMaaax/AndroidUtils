@@ -14,11 +14,13 @@ plugins {
 
 kotlin {
     jvm()
+    iosSimulatorArm64()
 
     sourceSets {
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
+            implementation("org.jetbrains.compose.animation:animation:1.10.3")
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
