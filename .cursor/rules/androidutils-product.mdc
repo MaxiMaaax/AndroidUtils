@@ -1,0 +1,35 @@
+---
+description: Vision produit AndroidUtils — outil desktop pour actions ADB/scrcpy sans compétences techniques
+alwaysApply: true
+---
+
+# AndroidUtils — contexte produit
+
+## Public et objectif
+
+- Outil desktop avec **GUI** pour que des **collègues peu techniques** puissent gérer des **terminaux Android** (TPE, apps métier).
+- La boîte développe des **applications Android** pour TPE ; besoins fréquents : **désinstaller / installer des apps**, **scrcpy (screen copy)**, **récupérer des APK** depuis l’appareil, et d’autres actions à venir.
+
+## Contraintes techniques majeures
+
+- **ADB et scrcpy doivent être embarqués** dans l’application : **pas** d’installation séparée par l’utilisateur.
+- **Priorité macOS** ; **Windows possible** mais moins prioritaire.
+- Pour les fonctionnalités device : **privilégier ADB** (beaucoup d’évolutions prévues autour d’ADB).
+
+## Distribution / juridique (rappel)
+
+- Binaires tiers (Google **platform-tools** / **scrcpy**) : respecter les **licences** (notamment Apache 2.0) et les **mentions** adaptées dans les livrables si nécessaire.
+
+## POC / périmètre initial (référence)
+
+- Lister les **appareils connectés**, en proposer un **par défaut**, laisser l’utilisateur **choisir l’appareil** actif.
+- **Lancer scrcpy** pour voir l’appareil sur l’ordinateur.
+- **Lister toutes les applications** installées sur l’appareil ; permettre d’**extraire un APK** vers le Mac ; nom de fichier : **nom d’application + numéro de version** (sanitisé pour le système de fichiers), avec repli raisonnable si le libellé n’est pas résolvable.
+
+## Implémentation (conventions du repo)
+
+- Ressources natives empaquetées via **`nativeDistributions.appResourcesRootDir`** (Compose Desktop) ; chemin runtime : propriété système **`compose.application.resources.dir`**.
+- Tâche Gradle **`prepareBundledTools`** : télécharge et place **adb** (platform-tools Darwin) + bundle **scrcpy** (archive officielle macOS selon l’architecture) sous `composeApp/desktop-native-resources/macos-{arm64|x64}/` (dossier gitignoré). Lancée avant **`prepareAppResources`** ; sur hôte non macOS, la tâche ne télécharge rien (build Windows/Linux sans binaires Apple pour l’instant).
+- **scrcpy** est lancé avec le répertoire `scrcpy-bundle` comme `workingDirectory` et la variable d’environnement **`ADB`** pointant vers l’**adb embarqué** (même binaire que pour le reste des commandes).
+- **Lancement sans Gradle** (ex. bouton Run d’Android Studio sur `main`) : la propriété `compose.application.resources.dir` est absente ; le code résout alors **`composeApp/desktop-native-resources/macos-*`** en remontant depuis `user.dir`, ou **`ANDROID_UTILS_BUNDLED_TOOLS`** / **`-Dandroidutils.bundled.tools=`** en secours. Il faut au moins une fois **`./gradlew :composeApp:prepareBundledTools`** pour que ce dossier existe.
+- **Windows** : priorité basse ; prévoir plus tard `windows-x64` + archives Google `platform-tools` Windows + `scrcpy-win64` dans le même mécanisme `appResourcesRootDir`.
